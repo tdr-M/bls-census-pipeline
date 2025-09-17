@@ -7,3 +7,4 @@ census:
   output:
     raw_dir: "data/raw/census"
     bronze_dir: "data/bronze/census"
+    silver_dir: "data/silver/census"

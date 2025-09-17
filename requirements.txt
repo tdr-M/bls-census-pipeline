@@ -4,3 +4,5 @@ PyYAML
 python-dotenv
 psycopg2-binary
 pytest
+apache-airflow
+pendulum
