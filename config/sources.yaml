@@ -1,0 +1,9 @@
+census:
+  base_url: "https://api.census.gov/data"
+  dataset_path: "timeseries/eits/mrts"
+  params:
+    get: "data_type_code,time_slot_id,seasonally_adj,category_code,cell_value,error_data"
+    time: "from 2023"
+  output:
+    raw_dir: "data/raw/census"
+    bronze_dir: "data/bronze/census"

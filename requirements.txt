@@ -1,0 +1,6 @@
+pyspark==3.4.4
+requests
+PyYAML
+python-dotenv
+psycopg2-binary
+pytest
