@@ -29,6 +29,7 @@ data/raw/
 data/bronze/
 data/silver/
 data/gold/
+data/checkpoints
 spark-warehouse/
 derby.log
 

@@ -2,8 +2,6 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-from datetime import datetime, timezone
-from pyspark.sql import functions as F
 
 from jobs.utils.config_loader import load_yaml
 from jobs.utils.logging_setup import setup_logging

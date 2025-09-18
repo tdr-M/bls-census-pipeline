@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, os, json
+import argparse, os
 from pyspark.sql import functions as F
 from jobs.utils.spark_session import get_spark
 from jobs.utils.config_loader import load_yaml
