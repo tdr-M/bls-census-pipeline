@@ -1,0 +1,4 @@
+kafka:
+  topic: "bls_ticks"
+  bootstrap_host: "localhost:29092"
+  bootstrap_container: "host.docker.internal:29092"

@@ -1,51 +1,35 @@
 from __future__ import annotations
-import sys
-from pathlib import Path
 import pendulum
 from airflow import DAG
-from airflow.operators.python import PythonOperator
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from jobs.batch.census_ingest import main as ingest_main
-from jobs.batch.census_silver import main as silver_main
-from jobs.batch.census_gold import main as gold_main
+from airflow.operators.bash import BashOperator
 
 LOCAL_TZ = pendulum.timezone("Europe/Bucharest")
-
-default_args = {
-    "owner": "data-eng",
-    "retries": 2,
-}
+default_args = {"owner": "data-eng", "retries": 0}
 
 with DAG(
     dag_id="census_batch_daily",
-    description="Fetch Census MRTS to bronze, then transform to silver",
+    description="Fetch Census MRTS to bronze, then transform to silver and upsert gold",
     start_date=pendulum.datetime(2025, 1, 1, tz=LOCAL_TZ),
-    schedule="0 8 * * *",  # every day 08:00 EET/EEST
+    schedule="0 8 * * *",
     catchup=False,
     default_args=default_args,
     max_active_runs=1,
-    tags=["census","bronze","silver"],
+    tags=["census", "bronze", "silver", "gold"],
 ) as dag:
-
-    def run_bronze(ds, **_):
-        since_year = ds[:4]
-        ingest_main(since_year)
-
-    bronze = PythonOperator(
+    bronze = BashOperator(
         task_id="census_bronze",
-        python_callable=run_bronze,
+        bash_command="cd /opt/airflow/project && python -m jobs.batch.census_ingest --since {{ ds[:4] }}",
+        env={"PYTHONPATH": "/opt/airflow/project"},
     )
 
-    silver = PythonOperator(
+    silver = BashOperator(
         task_id="census_silver",
-        python_callable=silver_main,
+        bash_command="cd /opt/airflow/project && python -m jobs.batch.census_silver",
+        env={"PYTHONPATH": "/opt/airflow/project"},
     )
 
-    gold = PythonOperator(
+    gold = BashOperator(
         task_id="census_gold",
-        python_callable=gold_main,
+        bash_command="cd /opt/airflow/project && python -m jobs.batch.census_gold",
+        env={"PYTHONPATH": "/opt/airflow/project"},
     )

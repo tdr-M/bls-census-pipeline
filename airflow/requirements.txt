@@ -1,0 +1,7 @@
+pyspark==3.4.4
+pyyaml
+requests
+psycopg2-binary
+kafka-python
+pendulum
+python-dotenv

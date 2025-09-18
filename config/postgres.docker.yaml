@@ -1,0 +1,10 @@
+postgres:
+  host: "host.docker.internal"
+  port: 5433
+  db:   "econ"
+  user: "pipeline"
+  password: "pipeline"
+  schema: "gold"
+  staging_schema: "staging"
+  driver: "org.postgresql.Driver"
+  jdbc_package: "org.postgresql:postgresql:42.7.3"

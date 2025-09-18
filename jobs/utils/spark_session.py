@@ -1,48 +1,44 @@
-import os, sys
+from __future__ import annotations
+import os
+import platform
 from pathlib import Path
+from typing import Dict, List, Optional
+
 from pyspark.sql import SparkSession
 
-def _norm(p: str) -> str:
-    return str(Path(p).resolve()).replace("\\", "/")
 
-def get_spark(app: str = "bls-census-pipeline",
-              packages: list[str] | None = None,
-              extra_confs: dict[str, str] | None = None) -> SparkSession:
-    py_exec = _norm(sys.executable)
-    hadoop_home = _norm(os.environ.get("HADOOP_HOME"))
-    bin_path = f"{hadoop_home}/bin"
+def _norm(p: Optional[str]) -> str:
+    return str(Path(p).resolve()).replace("\\", "/") if p else ""
 
-    os.environ["HADOOP_HOME"] = hadoop_home
-    os.environ["PATH"] = os.environ["PATH"] + os.pathsep + bin_path
-    os.environ["PYSPARK_DRIVER_PYTHON"] = py_exec
-    os.environ["PYSPARK_PYTHON"] = py_exec
-    os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
 
-    log4j = Path("config/log4j2.properties")
-    jvm_opts = [f"-Djava.library.path={bin_path}", f"-Dhadoop.home.dir={hadoop_home}"]
-    if log4j.exists():
-        jvm_opts.append(f"-Dlog4j2.configurationFile=file:{_norm(str(log4j))}")
-
+def get_spark(
+    app_name: str,
+    packages: Optional[List[str]] = None,
+    conf: Optional[Dict[str, str]] = None,
+) -> SparkSession:
+    """
+    Build a SparkSession that works on both Windows (host) and Linux (containers).
+    - On Linux (Airflow/Kafka containers), we do NOT touch HADOOP_HOME.
+    """
     builder = (
         SparkSession.builder
-        .appName(app)
+        .appName(app_name)
         .master("local[*]")
-        .config("spark.sql.shuffle.partitions", "4")
-        .config("spark.driver.extraJavaOptions", " ".join(jvm_opts))
-        .config("spark.executor.extraJavaOptions", " ".join(jvm_opts))
-        .config("spark.driver.extraLibraryPath", bin_path)
-        .config("spark.executor.extraLibraryPath", bin_path)
-        .config("spark.pyspark.driver.python", py_exec)
-        .config("spark.pyspark.python", py_exec)
-        .config("spark.executorEnv.PYSPARK_PYTHON", py_exec)
-        .config("spark.executorEnv.PYSPARK_DRIVER_PYTHON", py_exec)
-        .config("spark.executorEnv.PATH", os.environ["PATH"])
+        .config("spark.sql.session.timeZone", "UTC")
     )
+
+    #Hadoop is important only for windows hosts!!!!
+    if platform.system().lower().startswith("win"):
+        hh = _norm(os.environ.get("HADOOP_HOME"))
+        if hh:
+            os.environ["HADOOP_HOME"] = hh
 
     if packages:
         builder = builder.config("spark.jars.packages", ",".join(packages))
-    if extra_confs:
-        for k, v in extra_confs.items():
+
+    if conf:
+        for k, v in conf.items():
             builder = builder.config(k, v)
 
-    return builder.getOrCreate()
+    spark = builder.getOrCreate()
+    return spark

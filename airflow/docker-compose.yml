@@ -1,0 +1,85 @@
+x-env-common: &env-common
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+  PYTHONPATH: /opt/airflow/project
+  POSTGRES_CONFIG: /opt/airflow/project/config/postgres.docker.yaml
+  #If any task needs kafka
+  KAFKA_BOOTSTRAP: host.docker.internal:29092
+
+services:
+  airflow-db:
+    image: postgres:17
+    container_name: airflow-db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - airflow_db_data:/var/lib/postgresql/data
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local/airflow-spark:2.9.3
+    entrypoint: /bin/bash
+    command: -c "airflow db init && airflow users create --role Admin --username airflow --password airflow --firstname a --lastname a --email a@a"
+    env_file:
+      - ../.env
+    environment:
+      <<: *env-common
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    volumes:
+      - ../:/opt/airflow/project
+      - ./dags:/opt/airflow/dags
+
+  airflow-webserver:
+    image: local/airflow-spark:2.9.3
+    container_name: airflow-webserver
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    env_file:
+      - ../.env
+    environment:
+      <<: *env-common
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    command: webserver
+    volumes:
+      - ../:/opt/airflow/project
+      - ./dags:/opt/airflow/dags
+
+  airflow-scheduler:
+    image: local/airflow-spark:2.9.3
+    container_name: airflow-scheduler
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      <<: *env-common
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    command: scheduler
+    volumes:
+      - ../:/opt/airflow/project
+      - ./dags:/opt/airflow/dags
+
+volumes:
+  airflow_db_data:

@@ -1,0 +1,12 @@
+bls:
+  api_url: "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+  series_ids: ["CEU4142000001", "CEU7072000001"]
+  latest_only: true
+  poll:
+    iterations: 6
+    interval_seconds: 10
+  output:
+    bronze_dir_stream: "data/bronze_stream/bls"
+    silver_dir_stream: "data/silver_stream/bls"
+    checkpoint_silver: "data/checkpoints/bls_silver"
+    checkpoint_gold: "data/checkpoints/bls_gold"
