@@ -31,26 +31,6 @@ CREATE TABLE IF NOT EXISTS staging.census_mrts (
   ingest_date date
 );
 
-CREATE TABLE IF NOT EXISTS gold.bls_series_history (
-  series_id    text    NOT NULL,
-  ts_ingested  timestamptz NOT NULL,
-  dt           date    NOT NULL,
-  year         int     NOT NULL,
-  month        int     NOT NULL,
-  period       text    NOT NULL,
-  periodname   text    NULL,
-  value        double precision NOT NULL,
-  is_latest    boolean NOT NULL,
-  footnotes    text[]  NULL,
-  PRIMARY KEY (series_id, ts_ingested)
-);
-
-CREATE INDEX IF NOT EXISTS idx_bls_hist_dt_series
-  ON gold.bls_series_history (dt, series_id);
-
-CREATE OR REPLACE VIEW analytics.bls_latest AS
-SELECT * FROM gold.bls_series_latest;
-
 CREATE MATERIALIZED VIEW IF NOT EXISTS analytics.mv_census_latest AS
 SELECT DISTINCT ON (category_code, data_type_code, time_slot_id, is_seasonally_adjusted)
   time, dt, year, month, is_seasonally_adjusted,
