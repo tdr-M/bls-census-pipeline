@@ -1,2 +1,0 @@
-v1
-{"path":"file:///opt/airflow/project/data/bronze_stream/bls/part-00000-2149f4d3-8232-4fd4-9952-f71a6fa8524a-c000.snappy.parquet","size":3553,"isDir":false,"modificationTime":1758260384430,"blockReplication":1,"blockSize":33554432,"action":"add"}
