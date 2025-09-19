@@ -1,10 +1,10 @@
 bls:
   api_url: "https://api.bls.gov/publicAPI/v2/timeseries/data/"
-  series_ids: ["CEU4142000001", "CEU7072000001"]
-  latest_only: true
+  series_ids: ["CEU4142000001", "CEU7072000001", "CEU0800000003"]
+  latest_only: false
   poll:
-    iterations: 6
-    interval_seconds: 10
+    iterations: 1
+    interval_seconds: 5
   output:
     bronze_dir_stream: "data/bronze_stream/bls"
     silver_dir_stream: "data/silver_stream/bls"

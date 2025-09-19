@@ -25,6 +25,8 @@ logs/
 *.out
 *.err
 
+data/bronze_stream
+data/silver_stream
 data/raw/
 data/bronze/
 data/silver/

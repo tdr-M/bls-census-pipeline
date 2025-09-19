@@ -28,7 +28,7 @@ with DAG(
         task_id="bls_gold_latest",
         bash_command=(
             "cd /opt/airflow/project && "
-            "python -m jobs.streaming.bls_gold --max-seconds 30"
+            "python -m jobs.streaming.bls_gold --max-seconds 45"
         ),
         env={
             "PYTHONPATH": "/opt/airflow/project",

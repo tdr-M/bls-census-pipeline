@@ -1,5 +1,3 @@
-from datetime import date
-from pyspark.sql import Row, functions as F, types as T
 from jobs.transformations.census_silver import transform_census_bronze_to_silver
 
 def test_transform_basic(spark):

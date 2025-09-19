@@ -1,6 +1,5 @@
 import os
 import sys
-from pathlib import Path
 import pytest
 
 from jobs.utils.spark_session import get_spark

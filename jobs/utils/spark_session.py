@@ -18,7 +18,7 @@ def get_spark(
 ) -> SparkSession:
     """
     Build a SparkSession that works on both Windows (host) and Linux (containers).
-    - On Linux (Airflow/Kafka containers), we do NOT touch HADOOP_HOME.
+    On Linux (Airflow/Kafka containers), we do NOT touch HADOOP_HOME.
     """
     builder = (
         SparkSession.builder
