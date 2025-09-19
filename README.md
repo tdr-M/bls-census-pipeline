@@ -14,30 +14,11 @@ Census MRTS API → Spark batch → gold table gold.census_mrts in Postgres
 
 Power BI connects to Postgres (localhost:5433, db econ, role: pbi_read, password: pbi_read) and reads gold.* tables and analytics.* views
 
+*Local storage :*
 
-**Architecture**
+Bronze: data/bronze/census/ (BATCH) & data/bronze_stream/bls/ (streaming)
 
-flowchart LR
-  subgraph Streaming (BLS)
-    A[BLS API] --> B[Python Producer]
-    B --> K[(Kafka 3.4.1)]
-    K --> C[Spark Structured Streaming - Consumer → bronze (Parquet)]
-    C --> D[Spark Silver (typing + latest per series)]
-    D --> E[Gold Upsert (Postgres 17)]
-  end
-
-  subgraph Batch (Census)
-    F[Census MRTS API] --> G[Spark Batch Job]
-    G --> E
-  end
-
-  E --> H[Power BI Desktop]
-
-Local storage:
-
-Bronze: data/bronze/census/ (batch) & data/bronze_stream/bls/ (streaming)
-
-Silver: data/silver/census/ (batch) & data/silver_stream/bls/ (streaming)
+Silver: data/silver/census/ (BATCH) & data/silver_stream/bls/ (streaming)
 
 Checkpoints: data/checkpoints/{bls_bronze|bls_silver|bls_gold} *(for streaming)*
 
@@ -64,7 +45,7 @@ Power BI Desktop (latest)
 
 *Prereqs: Docker running. Repo cloned.*
 
-**bash :**
+**Open bash :**
 
 **kafka :**
 
