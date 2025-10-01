@@ -1,150 +1,133 @@
 # Economic Data Pipeline — Census & BLS (Batch + Streaming)
 
-A local, dockerized **data pipeline** that ingests U.S. economic indicators (Census MRTS for **batch**, BLS time-series for **streaming**), processes them with **PySpark**, and curates **Gold** tables in **PostgreSQL** for downstream analytics and **Power BI** dashboards.
+A local, dockerized **data pipeline** that ingests U.S. economic indicators (Census MRTS for batch, BLS for streaming), processes them with **PySpark**, and serves curated **Gold** tables to **PostgreSQL** for downstream analytics in **Power BI**.
 
 ---
 
-## Dependency Graph
+## What it does
 
-```mermaid
-flowchart LR
-  subgraph Producer
-    P[BLS Producer (Python)]
-  end
+- **Streaming path (BLS)**  
+  - Producer hits the BLS API → sends to **Kafka**  
+  - **Spark consumer** lands **bronze** Parquet  
+  - **Spark silver**: typing + de-duplication (latest per `series_id, year, period`)  
+  - **Gold**: upserts into Postgres table `gold.bls_series_latest`
 
-  subgraph Kafka
-    K[(Kafka Broker 3.4.1)]
-  end
+- **Batch path (Census MRTS)**  
+  - Spark batch ingestion of MRTS API → **gold.census_mrts** in Postgres  
+  - Analytics schema contains helper views and a date dimension for BI
 
-  subgraph Spark
-    C[Spark Consumer → Bronze (Parquet)]
-    S[Spark Silver → Typed + Dedup]
-    G[Spark Gold Writer → PostgreSQL]
-  end
+- **Power BI**  
+  - Connects to Postgres at `localhost:5433` (db `econ`, role `pbi_read`)  
+  - Reads `gold.*` fact tables + `analytics.*` views for dashboards
 
-  subgraph Batch
-    CEN[Census MRTS API → Spark Batch Job]
-  end
-
-  subgraph Storage
-    PG[(PostgreSQL 17: econ DB)]
-    FS[(Local Parquet Files: data/bronze, data/silver)]
-  end
-
-  subgraph BI
-    BI[Power BI Desktop]
-  end
-
-  P --> K
-  K --> C --> S --> G
-  CEN --> G
-  G --> PG
-  FS --> BI
-  PG --> BI
-```
+**Local storage layout**
+- Bronze (batch): `data/bronze/census/`  
+- Bronze (stream): `data/bronze_stream/bls/`  
+- Silver (batch): `data/silver/census/`  
+- Silver (stream): `data/silver_stream/bls/`  
+- Checkpoints: `data/checkpoints/{bls_bronze|bls_silver|bls_gold}`
 
 ---
 
-## Prerequisites
+## Tech stack
 
-- **Python** 3.10
-- **Java** 11
-- **PySpark** 3.4.4
-- **Apache Kafka** 3.4.1 (Bitnami, single node / KRaft mode)
-- **PostgreSQL** 17 + **pgAdmin** 8
-- **Apache Airflow** 2.x (Dockerized)
+- **Python** 3.10  
+- **PySpark** 3.4.4  
+- **Kafka** 3.4.1 (Bitnami, single-node KRaft, host port `29092`)  
+- **Apache Airflow** 2.x (Dockerized)  
+- **PostgreSQL** 17 (`pg-econ`, host port `5433`)  
+- **pgAdmin** 8 (UI on port `5050`)  
+- **Docker & Docker Compose**  
 - **Power BI Desktop**
-- **Docker & Docker Compose**
 
 ---
 
-## Run the Infrastructure
+## Run commands (local)
 
-### Start Postgres & pgAdmin
-```bash
-cd docker
-docker compose up -d
-# Postgres → localhost:5433 (db: econ, role: pbi_read)
-# pgAdmin → http://localhost:5050
-```
+### Prereqs
+- Docker running
+- Repo cloned
 
-### Start Kafka
+---
+
+### Kafka
 ```bash
 cd kafka
 docker compose up -d
-# Broker accessible at:
-#   - Inside containers: kafka:9092
-#   - From host tools: localhost:29092
 ```
 
-### Initialize DB Schemas
+### Postgres & pgAdmin
 ```bash
-docker exec -i pg-econ psql -U pipeline -d econ -f db/ddl_census.sql
-docker exec -i pg-econ psql -U pipeline -d econ -f db/ddl_bls.sql
+cd ../docker
+docker compose up -d
 ```
 
----
-
-## Run the Pipeline
-
-### Streaming (BLS)
-Inside Airflow container:
+Initialize schemas, tables, views:
 ```bash
+docker exec -i pg-econ psql -U pipeline -d econ -v ON_ERROR_STOP=1 -f - < db/ddl_census.sql
+docker exec -i pg-econ psql -U pipeline -d econ -v ON_ERROR_STOP=1 -f - < db/ddl_bls.sql
+```
+
+### Airflow
+```bash
+cd airflow
+docker compose up -d
 docker exec -it airflow-webserver bash
 cd /opt/airflow/project
-
-# Produce BLS ticks into Kafka
-python -m scripts.produce_bls_stream
-
-# Consume Kafka → Bronze parquet
-python -m jobs.streaming.bls_consumer --max-seconds 60
-
-# Bronze → Silver parquet (typed, deduped)
-python -m jobs.streaming.bls_silver --max-seconds 60
-
-# Silver → Postgres Gold (upsert latest per series)
-python -m jobs.streaming.bls_gold --max-seconds 60
-```
-
-Check results:
-```bash
-docker exec -it pg-econ psql -U pipeline -d econ -c "SELECT COUNT(*) FROM gold.bls_series_latest;"
-```
-
-### Batch (Census MRTS)
-Run via Airflow DAG (`census_batch_daily`) or CLI job.  
-Validate:
-```bash
-docker exec -it pg-econ psql -U pipeline -d econ -c "SELECT COUNT(*) FROM gold.census_mrts;"
 ```
 
 ---
 
-## Power BI Connection
+### Streaming jobs (manual run inside Airflow container)
 
-- **Server:** `localhost:5433`  
-- **Database:** `econ`  
-- **User:** `pbi_read` / `pbi_read`  
-- Load: `gold.census_mrts`, `analytics.dim_date`
-
-Build measures in DAX (example):
-```DAX
-Total Value := SUM('gold.census_mrts'[cell_value])
-
-LTM 12M :=
-VAR LastDate = MAX('analytics.dim_date'[dt])
-RETURN CALCULATE([Total Value],
-  DATESINPERIOD('analytics.dim_date'[dt], LastDate, -12, MONTH)
-)
+**Produce BLS messages into Kafka:**
+```bash
+python -m scripts.produce_bls_stream
 ```
 
-Example visual: **“LTM Total (12 mo) by category_code”**  
-Clustered column chart → Axis = `category_code`, Values = `[LTM 12M]`, Sort descending.
+**Consume Kafka → Bronze parquet:**
+```bash
+python -m jobs.streaming.bls_consumer
+```
+
+**Type and dedupe → Silver parquet:**
+```bash
+python -m jobs.streaming.bls_silver
+```
+
+**Upsert Gold → Postgres:**
+```bash
+python -m jobs.streaming.bls_gold
+```
+
+Validate:
+```bash
+docker exec -it pg-econ psql -U pipeline -d econ -c "select count(*) from gold.bls_series_latest;"
+```
+
+---
+
+### Batch jobs
+
+Either run from CLI or trigger DAG **`census_batch_daily`** from Airflow UI.  
+Validate:
+```bash
+docker exec -it pg-econ psql -U pipeline -d econ -c "select count(*) from gold.census_mrts;"
+```
+
+---
+
+## Power BI connection
+
+1. **Home → Get Data → PostgreSQL**
+2. **Server:** `localhost:5433` **Database:** `econ`
+3. **Credentials:** role `pbi_read`, password `pbi_read`
+4. Select tables/views (`gold.census_mrts`, `analytics.dim_date`, etc.) and Load
 
 ---
 
 ## Notes
 
-- Clear state if schemas change: remove `data/checkpoints/*` and old Parquet files.  
-- Airflow DAGs mirror the CLI steps for reproducibility.  
-- Power BI dashboards show batch & streaming metrics side by side.
+- Streaming micro-batches are intentionally small; run the producer multiple times for more rows  
+- If schemas drift or parquet type mismatches appear, **stop jobs, clear `data/checkpoints/*`**, then re-run  
+- Airflow DAGs mirror the CLI steps above, so you can trigger them instead of manual runs  
